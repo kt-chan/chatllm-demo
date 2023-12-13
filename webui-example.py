@@ -6,10 +6,10 @@ def random_response(message, history):
     return random.choice(["Yes", "No"])
 
 demo = gr.ChatInterface(random_response)
-
-os.environ["http_proxy"] = "http://c00627809:%40hwKT1986c@proxyhk.huawei.com:8080"
-os.environ["https_proxy"] = "http://c00627809:%40hwKT1986c@proxyhk.huawei.com:8080"
-os.environ["no_proxy"] = "localhost,127.0.0.1,::1"
+os.environ['OPENAI_API_KEY'] = os.environ["ZHIPUAI_API_KEY"]
+os.environ["http_proxy"] = os.environ["PROXY"]
+os.environ["https_proxy"] = os.environ["PROXY"]
+os.environ["no_proxy"] = os.environ["NO_PROXY"]
 port=8081
 
 #demo.launch(share=True, server_port=port)

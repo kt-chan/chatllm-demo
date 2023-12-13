@@ -30,7 +30,7 @@ from langchain.llms.base import LLM
 from langchain.pydantic_v1 import Field, root_validator
 from langchain.schema.output import GenerationChunk
 from langchain.utils import get_from_dict_or_env
-from base_llm import Base_LLM
+from llms.base_llm import Base_LLM
 
 logger = logging.getLogger(__name__)
 
