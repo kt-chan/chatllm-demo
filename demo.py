@@ -1,156 +1,392 @@
-
 import os, logging
 import zhipuai
 import gradio as gr
-
+import re
 # Import langchain stuff
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import AIMessage, HumanMessage
+from langchain import hub
+from langchain.chains import RetrievalQA, ConversationalRetrievalChain
+from langchain.memory import ConversationBufferWindowMemory, ConversationBufferMemory
+from langchain.text_splitter import CharacterTextSplitter
+from langchain_community.vectorstores.chroma import Chroma
+from langchain.embeddings import GPT4AllEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain.document_loaders import DirectoryLoader
 from llms.zhipuai_llm import ZhipuAILLM
-
 from dotenv import load_dotenv, find_dotenv
-_ = load_dotenv(find_dotenv()) # 读取并加载环境变量，来自 .env 文件
+
+_ = load_dotenv(find_dotenv())  # 读取并加载环境变量，来自 .env 文件
 
 os.environ["http_proxy"] = os.environ["PROXY"]
 os.environ["https_proxy"] = os.environ["PROXY"]
 os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
-refmeta = """
-        Please follow the below instruciton in generating your output:
+# 填写控制台中获取的 APIKey 信息
+zhipuai.api_key = os.environ["ZHIPUAI_API_KEY"]
 
-        Use electronic application whenever appropriate.
-        For account openning and account transfer use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; and for account closing use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
-        For account termination or account close, always provide information related to deposit refund and it is preferred to use crossed cheque made payable if applicable.
-        For relocation, always first provide information about account termination, and then account openning.
-        And You have to restrict your answer with the information provided in this ref tag, and only provide the best option and do not list all available options. 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-        
-        Move In
-        Welcome to "Electricity Account Management". This Section contains 5 modules. Read " Move In " if you are going to move house. Don't skip " Billing & Payment" if you wish to manage your account in a more effective way. Also take time to see " Use of Electricity " for more information on electrical safety and energy efficiency. If you would vacate your premises, " Move Out " and "Deposit Refund " would be most useful to you. 
+INSTRUCTION = """You are a customer service agent of HK electric, please help draft an email to response to the question at the end.
+You should follow the below rules in answering:
+1. Use electronic application whenever appropriate.
+2. For open account and transfer account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US;
+3. For close account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
+4. For account termination or account close, you have to provide information about deposit refund and it is preferred to use crossed cheque made payable;
+5. For relocation,  first provide information about account termination, and then provide information about account openning.
 
-        Please click the description that suits your new premises:
-
-        1.
-        Electricity supply is available at my new premises and there is no alteration made to the existing installation and / or the supply loading or ​Electricity supply at my new premises has been disconnected for not more than four months and there is no alteration made to the existing installation and / or the supply loading.
-        faq close
-        Please arrange transfer of account of the new address to make it under your name.
-
-        In most of the cases, you can arrange the transfer of account by
-
-        Complete and submit the respective application form via HK Electric App.
-        Completing the respective electronic application form on the Website.
-        Calling our Customer Services Executives at 2887 3411 during office hours.
-        Submitting an application form to our Customer Centre or by fax to 2510 7667.
-        Notice in Advance
-
-        Please give one working day advance notice.
-
-        What will Hongkong Electric do on the transfer effective date?
-
-        We will take a meter reading and connect electricity supply (if electricity supply is not available). It is not necessary to make appointment with us for taking meter reading unless the electricity meter is inside the premises.
-
-        How about deposit?
-
-        A deposit is required as security for future use of electricity. The required deposit is equivalent to 60 days estimated consumption, and the estimation is based on the loading of appliances and the main switch rating. The deposit will be refunded to the registered customer upon termination of account.
+Question: """
 
 
-        2.
-        There is alteration made to the existing installation and / or the supply loading at my new premises or Electricity supply at my new premises has been disconnected for more than four months.
-        faq close
-        Please apply for new supply. We will inspect the installation at the customer's premises before connection of supply.
+RAG_TEMPLATE = """You are a customer service agent of HK electric who answer questions from customer enquiry. 
+Use the following pieces of context to answer the question at the end.  
+If you don't know the answer, just say "Hmm, I'm not sure.". Don't try to make up an answer. 
+If the question is not about customer service scope, politely inform them that you are only tuned to customer service.
 
-        In most of the cases, you can apply for new supply by:
+{context}
 
-        Completing the respective electronic application form on the Website.
-        Submitting an application form to our Customer Centre or by fax to 2510 7667.
-        Calling our Customer Services Executives at 2887 3411 during office hours.
-        Inspection on the Installation of the Customer's Premises
+Chat history:
+{chat_history}
 
-        You may make appointment for installation inspection with us if you have submitted the application for new supply.
-        The registered electrical contractor / worker should submit a copy of the duly completed "Work Completion Certificate (WCC)" on or before the installation inspection and the registered electrical worker of the appropriate grade should be present on site during the installation inspection.
-        Connection of Supply
+Question: {question}
 
-        Normally, upon satisfactory installation inspection, electricity supply will be connected immediately. If the result is unsatisfactory, re-inspection is required and re-inspection fees will be levied.
-        If the application for supply requires extra equipment and / or application for official permits, it may take a longer time and service charge may be required.
-        If an installation is connected to communal rising mains and its main switch rating has to be increased, "CI Form 140" should be submitted to confirm that it is agreed by the owner of rising mains.
-        How about deposit?
-
-        A deposit is required as security for future use of electricity. The required deposit is equivalent to 60 days estimated consumption, and the estimation is based on the loading of appliances and the main switch rating. The deposit will be refunded to the registered customer upon termination of account.
-
-        Move Out
-        Welcome to "Electricity Account Management". This Section contains 5 modules. Read " Move In " if you are going to move house. Don't skip " Billing & Payment " if you wish to manage your account in a more effective way. Also take time to see " Use of Electricity " for more information on electrical safety and energy efficiency. If you would vacate your premises, " Move Out " and "Deposit Refund " would be most useful to you. 
-
-           
-
-        Are you the registered customer of the electricity account of the premises?
-        1.
-        Yes, I am the registered customer of the electricity account of the premises.
-        faq close
-        Please arrange termination of account under your name if you are going to move out from the premises.
-
-        Please notify us two working days in advance. You may arrange termination of account via one of the following channels:
-
-        Complete the respective electronic application form on our website.
-        Call our Customer Services Executives at 2887 3411 during office hours.
-        Complete and return the form "Application for Termination of Electricity Account" to our Customer Centre or by fax to 2510 7667.
-        It is not necessary to make appointment with us for taking the final meter reading unless the electricity meter is inside the premises. 
-        If there is a new occupant, the account will be automatically finalized on the effective transfer date of the application for transfer from the new customer. However, the registered customer is liable for all outstanding charges of the account as long as the account remains under his name.
+Helpful Answer:"""
 
 
-        2.
-        No, I am not the registered customer of the electricity account of the premises. The registered customer is my landlord / the ex-landlord / the ex-occupant.
-        faq close
-        You may ask for a special meter reading on the date that you will vacate the premises with one working day's notice in advance. The special meter reading can be arranged via one of the following channels:
+class QAPair:
+    def __init__(self, question, answer):
+        self.question = question
+        self.answer = answer
 
-        Complete the respective electronic form on our website.
-        Call our Customer Services Executives at 2887 3411 during office hours.
-        It is not necessary to make appointment with us for taking special meter reading unless the electricity meter is inside the premises.
-        
-        Deposit Refund
-        Welcome to "Electricity Account Management". This Section contains 5 modules. Read " Move In " if you are going to move house. Don't skip " Billing & Payment " if you wish to manage your account in a more effective way. Also take time to see " Use of Electricity " for more information on electrical safety and energy efficiency. If you would vacate your premises, " Move Out " and "Deposit Refund " would be most useful to you. 
 
-           
+samples = [
+    QAPair("""
+        Dear HK Electric, 
 
-        For registered customers issued with deposit receipt
-        By Cheque
+        I'm planning to relocate to a new address: Room 1001, 10/F ABC Building, 100 Oil Street, North Point, HK next month.  My existing account number is 0123456789  and I'm wondering what steps I need to take to ensure that I have electricity at my new home. Can you walk me through the process of applying for electricity supply, and let me know what information or documentation I'll need to provide? Thank you
 
-        Please mail the properly-endorsed deposit receipt, together with the correspondence address and telephone no. to our Customer Centre. A crossed cheque made payable to the registered customer will then be mailed to the correspondence address within five working days.
+        Regards,
+        Mary
+        """,
+     """
+    Dear Mary, 
 
-        Direct Refund to Bank Account
+    Service address: Room 1001, 10/F ABC Building, 100 Oil Street, North Point, HK
 
-        For the refundable amount $5,000 or below, we can also arrange direct refund to the bank account of the registered customer in Hong Kong within five working days upon receipt of a copy of bank record showing the bank account no. and bank account name.
+    Thank you for your email.
 
-        If deposit receipt is lost, please call us at 2887 3411 during office hours. A letter of indemnity will be sent to the registered customer for completion.
+    For moving house, the registered customer has to arrange termination of the current electricity account and set up a new one for the new address. Would you please advise the registered customer to contact our Customer Services Executives at 2887 3411 during office hours or complete the electronic forms at the path below to process the requests: 
 
-        For registered customers not issued with a deposit receipt (i.e. The deposit was paid with the first electricity bill of your account)
-        Please call our Customer Services Executives at 2887 3411 during office hours to arrange deposit refund.
+    Account Termination (with at least 2 working days’ advance notice and should not fall on Saturday / Sunday / Public Holiday)
+    https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US
 
-        A crossed cheque made payable to the registered customer will be mailed to the correspondence address within five working days.
-        If the refundable amount is at $5,000 or below, we can also arrange direct refund to the bank account of the registered customer in Hong Kong within five working days upon receipt of a copy of bank record showing the bank account no. and bank account name.
-        Deposit of the electricity account can be refunded upon termination of account.
-"""
+    For refund of the deposit balance (after deducting the final outstanding as at the termination date from the deposit), we could send a crossed cheque in Hong Kong Dollars payable to the registered customer name to the new correspondence address in around 5 working days upon closure of account. 
 
-zhipuai.api_key = os.environ["ZHIPUAI_API_KEY"] #填写控制台中获取的 APIKey 信息
+    Account Registration (with at least 1 working day advance notice and should not fall on Saturday / Sunday / Public Holiday)
+    https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US
 
-llm = ZhipuAILLM(model="chatglm_turbo", temperature=0.9, top_p=0.1, zhipuai_api_key= zhipuai.api_key)
+    Upon successful registration, a deposit is required as security for future use of electricity and a new electricity account number will be assigned. The electricity supply will be connected during office hours on the account effective date. 
 
-def output_parser(message):
-    return message.replace('\\n', '</br>')
+    If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours. 
+    Yours sincerely,
+    YM Lai
+    Senior Manager (Customer Services)
+    HK Electric
+    """),
+    QAPair("""
+        Hi CS team, 
 
-def predict(message, history):
-    history_langchain_format = []
-    for human, ai in history:
-        history_langchain_format.append(HumanMessage(content=human))
-        history_langchain_format.append(AIMessage(content=ai))
-    message=message+" "+refmeta
-    logging.warning("input:" + message)
-    history_langchain_format.append(HumanMessage(content=message))
-    gpt_response = llm.predict_messages(history_langchain_format)
-    response = output_parser(gpt_response.content)
-    logging.warning("output:" + response)
-    return response
+        My account is 0123456789.  
+        I will move to a new flat at the end of this month. 
+        Should I transfer my account to the new apartment or should I close the account and open a new one? 
+
+        Thanks,
+        Mary
+        """,
+     """
+     Dear Mary, 
+
+    Service address: Room 1001, 10/F ABC Building, 100 Oil Street, North Point, HK
+
+    Thank you for your email.
+
+    For moving house, the registered customer has to arrange termination of the current electricity account and set up a new one for the new address. Would you please advise the registered customer to contact our Customer Services Executives at 2887 3411 during office hours or complete the electronic forms at the path below to process the requests: 
+
+    Account Termination (with at least 2 working days’ advance notice and should not fall on Saturday / Sunday / Public Holiday)
+    https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US
+
+    For refund of the deposit balance (after deducting the final outstanding as at the termination date from the deposit), we could send a crossed cheque in Hong Kong Dollars payable to the registered customer name to the new correspondence address in around 5 working days upon closure of account. 
+
+    Account Registration (with at least 1 working day advance notice and should not fall on Saturday / Sunday / Public Holiday)
+    https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US
+
+    Upon successful registration, a deposit is required as security for future use of electricity and a new electricity account number will be assigned. The electricity supply will be connected during office hours on the account effective date. 
+
+    If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours. 
+    Yours sincerely,
+    YM Lai
+    Senior Manager (Customer Services)
+    HK Electric
+     """),
+    QAPair("""
+    	Hello Customer Service Team, 
+
+    	I'm moving out of my current apartment very soon and need to cancel my electricity service. My existing account number is 1234567890.  Can you please let me know how I can unsubscribe from my current electricity account? Do I need to provide any documentation or give advance notice?
+
+    	Thank you!
+    	Mary 
+    	""",
+     """
+     Dear Mary,
+
+     Account no: 1234567890
+
+     Thank you for your email below.
+
+     To arrange account termination and deposit refund, would you please complete the electronic form at the path below to process the request:
+
+     Account Termination (with at least 2 working days’ advance notice and should not fall on Saturday / Sunday / Public Holiday)
+     https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US
+
+     For refund of the deposit balance (after deducting the final outstanding as at the termination date from the deposit), we could send a crossed cheque in Hong Kong Dollars payable to the registered customer name to the new correspondence address in around 5 working days upon closure of account. 
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours.
+     Yours sincerely,
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Dear colleague,
+
+    	I would like to close my current account 1234567890 as my new tenant will open a new account.
+
+    	Please advise the necessary procedure.
+
+    	Thank you,
+
+    	Mary
+    	""",
+     """
+     Dear Mary,
+
+     Account no: 1234567890
+
+     Thank you for your email below.
+
+     To arrange account termination and deposit refund, would you please complete the electronic form at the path below to process the request:
+
+     Account Termination (with at least 2 working days’ advance notice and should not fall on Saturday / Sunday / Public Holiday)
+     https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US
+
+     For refund of the deposit balance (after deducting the final outstanding as at the termination date from the deposit), we could send a crossed cheque in Hong Kong Dollars payable to the registered customer name to the new correspondence address in around 5 working days upon closure of account. 
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours.
+     Yours sincerely,
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Dear Customer Service Team, 
+
+    	I am writing to express interest in receiving my monthly electricity bill by email or accessing it online through your website. Can you please let me know how I can set this up, and what steps I need to take to ensure that I receive my bills electronically? Do I need to provide any documentation or create an online account? My existing account number is 0987654321.
+
+    	I'm trying to reduce paper waste and simplify my bill-paying process, so any information you can provide would be helpful. 
+
+    	Thank and regards,
+
+    	Mary
+    	""",
+     """
+     Dear Mary, 
+
+     Account no: 0987654321
+
+     Thank you for your email below. 
+
+     If you would like to receive e-bills instead of hardcopy bills, please register for the “Account-On-Line” and set up e-bill service via one of the following channels:
+
+     1.	Access the AOL Fast Track Registration by scanning the "E-bill Registration" QR code printed aside the right of the customer address on the top of recent electricity bill copy;
+
+     2.	Complete the online application via https://aol.hkelectric.com/AOL/aol#/account/preregistration. After the online registration, a confirmation letter with an activation code will be sent to the correspondence address of the account by post. Please follow the instructions in the letter to complete the one-off activation process and start receiving e-bills. Alternatively, if you would like HK Electric to activate the service for you, please provide your HKID card / passport copy for our verification by replying to this email.
+
+     You may also login the AOL service for accessing the account information after registration.
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours. 
+     Yours sincerely,
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Dear CS,
+
+    	Our account no is 0987654321.
+    	Can you tell me what is our current account balance? And how can I download softcopy bill and check the account balance myself? please advise, thank you!　
+
+    	Thanks & Regards,
+    	Mary
+
+    	""",
+     """
+     Dear Mary, 
+
+     Account no: 0987654321
+
+     Thank you for your email below. 
+
+     If you would like to receive e-bills instead of hardcopy bills, please register for the “Account-On-Line” and set up e-bill service via one of the following channels:
+
+     1.	Access the AOL Fast Track Registration by scanning the "E-bill Registration" QR code printed aside the right of the customer address on the top of recent electricity bill copy;
+
+     2.	Complete the online application via https://aol.hkelectric.com/AOL/aol#/account/preregistration. After the online registration, a confirmation letter with an activation code will be sent to the correspondence address of the account by post. Please follow the instructions in the letter to complete the one-off activation process and start receiving e-bills. Alternatively, if you would like HK Electric to activate the service for you, please provide your HKID card / passport copy for our verification by replying to this email.
+
+     You may also login the AOL service for accessing the account information after registration.
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours. 
+     Yours sincerely,
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Hi, I recently received my electricity bill and I'm wondering what payment methods are available. My existing account number is 0123123123.  Can you please let me know how I can pay my bill, and what options I have for payment? Do you accept credit cards, or bank transfers?  Any information you can provide would be much appreciated. 
+    	Thank you.
+    	Mary
+    	""",
+     """
+     Dear Mary,
+
+     Account no: 0123123123
+
+     Thank you for your email below.
+
+     As discussed, you may refer to the link below of our corporate website for various payment methods: 
+     https://www.hkelectric.com/en/customer-services/billing-payment-electricity-tariffs/how-to-pay-bill
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours.
+
+     Yours sincerely,
+
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Dear Sir/Madam,
+
+    	Can you provide the payment methods for me to settle the electricity bill? Thank you!
+
+    	Regards,
+    	Mary
+    	""",
+     """
+     Dear Mary,
+
+     Account no: 0123123123
+
+     Thank you for your email below.
+
+     As discussed, you may refer to the link below of our corporate website for various payment methods: 
+     https://www.hkelectric.com/en/customer-services/billing-payment-electricity-tariffs/how-to-pay-bill
+
+     If you have further enquiries, please contact our Customer Services Executives at 2887 3411 during office hours.
+
+     Yours sincerely,
+
+     YM Lai
+     Senior Manager (Customer Services)
+     HK Electric
+     """),
+    QAPair("""
+    	Dear HK Electric, 
+
+    	I'm planning to relocate to a new address: Room 908, 9/F WTT Tower, Yuen Long, New Territories, Hong Kong next month.  Let me know what information or documentation I'll need to provide? Thank you
+
+    	Regards,
+    	Mary
+    	""",
+     """
+     Dear Mary,
+     Service address: Room 908, 9/F World Trade Tower, Yuen Long, New Territories, Hong Kong
+     Thank you for using our electronic form.
+
+     Please be informed that our Company is responsible for electricity supply for Hong Kong Island and Lamma Island. As your service address is in New Territories, please contact China Light and Power at csd@clp.com.hk or 2678 2678 for your request.
+     Yours faithfully,
+     YM Lai
+     Senior Manager (Customer 
+     """),
+    QAPair("""
+    	Hello,
+
+    	I would like to set up a new account in Yuen Long.
+
+    	Address is Room 908, 9/F WTT Tower, Yuen Long, New Territories, Hong Kong
+
+    	I will move on 26th June 2023.
+
+    	Please let me know what are the next steps,
+
+    	Thanks,
+    	Mary
+    	""",
+     """
+     Dear Mary,
+     Service address: Room 908, 9/F World Trade Tower, Yuen Long, New Territories, Hong Kong
+     Thank you for using our electronic form.
+
+     Please be informed that our Company is responsible for electricity supply for Hong Kong Island and Lamma Island. As your service address is in New Territories, please contact China Light and Power at csd@clp.com.hk or 2678 2678 for your request.
+     Yours faithfully,
+     YM Lai
+     Senior Manager (Customer 
+     """)
+]
+
+# 加载文件夹中的所有txt类型的文件
+loader = DirectoryLoader('./data/', glob='**/*.txt')
+# 将数据转成 document 对象，每个文件会作为一个 document
+documents = loader.load()
+logger.info(f'documents:{len(documents)}')
+
+# 初始化加载器
+text_splitter = CharacterTextSplitter(chunk_size=1024, chunk_overlap=0)
+# 切割加载的 document
+split_docs = text_splitter.split_documents(documents)
+
+# LLM Model
+llm = ZhipuAILLM(model="chatglm_turbo", temperature=0.9, top_p=0.1, zhipuai_api_key=zhipuai.api_key)
+
+# Prompt-Template
+
+custom_question_prompt = PromptTemplate(input_variables=["context", "question", "chat_history"], template=RAG_TEMPLATE)
+
+# RAG VectorSearch: 将 document 通过 openai 的 embeddings 对象计算 embedding 向量信息并临时存入 Chroma 向量数据库，用于后续匹配查询
+vector_search = Chroma.from_documents(split_docs, embedding=GPT4AllEmbeddings())
+
+# 定义内存记忆
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+for qa in samples:
+    memory.chat_memory.add_user_message(re.sub(' +', ' ', qa.question))
+    memory.chat_memory.add_ai_message(re.sub(' +', ' ', qa.answer))
+
+def querying(query, history):
+
+    qa_chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=vector_search.as_retriever(search_kwargs={"k": 3}),
+        memory=memory,
+        combine_docs_chain_kwargs={"prompt": custom_question_prompt}
+    )
+    logger.info("memory:")
+    logger.info(memory.chat_memory.messages)
+    logger.info("question: " + INSTRUCTION + query)
+
+    result = qa_chain({"question": INSTRUCTION + query})
+    logger.info("answer: " + result["answer"].strip())
+
+    return result["answer"].strip().replace("\\n", "</br>")
+
 
 # Launch the interface
-gr.ChatInterface(predict).launch()
-
-#print(llm.generate(['什么llm封装']))
+#gr.ChatInterface(querying).launch(share=False)
+gr.ChatInterface(querying).launch(share=True)
