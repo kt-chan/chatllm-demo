@@ -38,3 +38,5 @@ websockets==11.0.3
 zhipuai==1.0.7
 gradio>=3.25.0
 gpt4all=2.0.2
+sentence-transformers=2.2.2
+pip-system-certs=4.0
