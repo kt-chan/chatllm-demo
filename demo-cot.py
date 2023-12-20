@@ -86,31 +86,28 @@ chain_location_check = LLMChain(
 
 _TEMPLATE = """
 
-You are a customer service agent of HK electric, please help draft an email to response to the 
-question at the end. If you don't know the answer, just say "Hmm, I'm not sure.". Don't try to make up an answer.
-You should follow the below rules in answering: 
+You are a customer service agent of HK electric, please help draft an email to  respond to the question at the end. 
+You should guide the user to use website form with links whenever applicable instead of listing all available options.
+You should follow the below rules in answering:
 
-1. Use electronic application whenever appropriate. 
-2. For open account and transfer account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
-3. For close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
-4. For  close or terminate account, you should also include deposit refund and prefer to use crossed cheque made payable; 
-5. For relocation,  first provide information about account termination, and then provide information about account opening.
+1. For open or setup new account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
+2. For close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
+3. For relocation or transfer account, first provide information about account termination, and then provide information about account opening;
+4. For deposit refund, it is preferred to use crossed cheque made payable; 
 
-You should take below context information for reference.
-Context: 
-{context}
+You should make your email response precise, use no more than 20 lines of text, and take the below context 
+information for reference, which is enclosed with <Context></Context> tag. 
+<Context> {context} </Context>
 
-You should also check the following chat history for reference.
-Chat history:
-{chat_history}
+You should also check the following chat history for reference, which is enclosed with <ChatHistory></ChatHistory> tag.
+<ChatHistory> {chat_history} </ChatHistory>
 
-
-Question: {question}
+<Question> {question} </Question>
 
 Helpful Answer:"""
 
 
-def getRetriever():
+def get_retriever():
     global _RETRIEVER
     if _RETRIEVER is None:
         # 加载文件夹中的所有txt类型的文件
@@ -134,7 +131,7 @@ def getRetriever():
     return _RETRIEVER
 
 
-def getMemory():
+def get_memory():
     global _MEMORY
     if _MEMORY is None:
         _MEMORY = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
@@ -143,8 +140,8 @@ def getMemory():
 
 chain_operation = ConversationalRetrievalChain.from_llm(
     llm=_LLM,
-    retriever=getRetriever(),
-    memory=getMemory(),
+    retriever=get_retriever(),
+    memory=get_memory(),
     combine_docs_chain_kwargs={"prompt": PromptTemplate(
         input_variables=["context", "chat_history", "question"],
         template=_TEMPLATE
@@ -171,37 +168,37 @@ chain_default = LLMChain(
 
 
 def route(info):
-    logging.debug(info)
-    isValid = info["topic"]["output"]
-    logging.info("chain_precondition_check: " + isValid)
-    if "yes" in isValid.lower():
+    logger.debug(info)
+    is_valid = info["topic"]["output"]
+    logger.info("chain_precondition_check: " + is_valid)
+    if "yes" in is_valid.lower():
         chain = chain_location_check({"question": info["question"]})
         out = json.loads(chain["output"].replace("\\n", "").replace("\\", ""))
-        logging.debug(out)
-        logging.info("chain_address_check: " + str(out["contain_address_info"]))
+        logger.debug(out)
+        logger.info("chain_address_check: " + str(out["contain_address_info"]))
         if out["contain_address_info"]:
             address_classification = out["address_classification"].lower()
             address_info = out["address_info"].lower()
             if "hong kong island" == address_classification:
                 # serve Hong Kong Island
                 chain = chain_operation({"question": info["question"]})
-                logging.debug(getMemory().chat_memory.messages)
-                logging.debug(chain)
+                logger.debug(get_memory().chat_memory.messages)
+                logger.debug(chain)
                 return chain
             else:
                 # do not serve N.T and KLN
                 chain = chain_default
-                logging.debug(chain)
+                logger.debug(chain)
                 return chain
         else:
             # do not contain address info
             chain = chain_operation({"question": info["question"]})
-            logging.debug(getMemory().chat_memory.messages)
-            logging.debug(chain)
+            logger.debug(get_memory().chat_memory.messages)
+            logger.debug(chain)
         return chain
     else:
         chain = chain_default
-        logging.debug(chain)
+        logger.debug(chain)
         return chain
 
 
@@ -212,7 +209,7 @@ full_chain = {"topic": chain_precondition_check, "question": lambda x: x["questi
 
 def querying(query, history):
     result = full_chain.invoke({"question": query})
-    logging.info(result)
+    logger.info(result)
     return result["output"].strip().replace("\\n", "</br>").replace("\\", "")
 
 
@@ -220,8 +217,8 @@ def main():
     # Launch the interface
     # gr.ChatInterface(querying).launch(share=False)
     global _RETRIEVER, _MEMORY
-    _RETRIEVER = getRetriever()
-    _MEMORY = getMemory()
+    _RETRIEVER = get_retriever()
+    _MEMORY = get_memory()
     gr.ChatInterface(querying, title="This is an AI email assistant for customer service",
                      textbox=gr.Textbox(lines=10, scale=4)).launch(share=False)
 
