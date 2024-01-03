@@ -32,16 +32,18 @@ COLLECTION_CUSTOMER_ENQUIRY = "customer_enquiry"
 PERSIST_DIRECTORY = "./database/"
 PATH_TO_SFT_JSON_FILES = './sft/'
 
-INSTRUCTION = """You are a customer service agent of HK electric, please help draft an email to response to the 
-question at the end. If you don't know the answer, just say "Hmm, I'm not sure.". Don't try to make up an answer. If 
-the question is not related account operation or billing enquiries, you have to decline answering and politely inform 
-the user that you are only tuned to customer service on account operation and billing enquiries. You should follow 
-the below rules in answering: 
-1. Use electronic application whenever appropriate. 
-2. For open account and transfer account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
-3. For close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
-4. For  close or terminate account, you should also include deposit refund and prefer to use crossed cheque made payable; 
-5. For relocation,  first provide information about account termination, and then provide information about account openning.
+INSTRUCTION = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not 
+related account operation or billing enquiries, you have to decline answering and politely inform the user that you 
+are only tuned to customer service on account operation and billing enquiries. 
+
+For your response to user, it is always prefer to use electronic application form whenever applicable, 
+make your response precise and do not list all options. And you must follow the below rules in answering:
+
+1. For open or setup new account, use electronic application form with this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
+2. For close or terminate account, use electronic application form with this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
+3. For relocation or transfer account, first provide information to terminate account using use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US, and then provide information to setup new account using this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
+4. For deposit refund, it is preferred to use crossed cheque made payable; 
+
 
 Question: """
 
@@ -81,7 +83,6 @@ split_docs = text_splitter.split_documents(documents)
 # LLM Model
 llm = ZhipuAILLM(model="chatglm_turbo", temperature=0.9, top_p=0.1, zhipuai_api_key=zhipuai.api_key)
 
-
 # RAG VectorSearch: 将 document 通过 openai 的 embeddings 对象计算 embedding 向量信息并临时存入 Chroma 向量数据库，用于后续匹配查询
 vector_search = Chroma.from_documents(split_docs,
                                       embedding=HuggingFaceEmbeddings(),
@@ -94,8 +95,8 @@ custom_question_prompt = PromptTemplate(input_variables=["context", "question", 
 # 定义内存记忆
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-def querying(query, history):
 
+def querying(query, history):
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=vector_search.as_retriever(search_kwargs={"k": 3}),
@@ -115,4 +116,6 @@ def querying(query, history):
 
 # Launch the interface
 # gr.ChatInterface(querying).launch(share=False)
-gr.ChatInterface(querying, title="This is an AI chatbot for customer service").launch(share=False)
+gr.ChatInterface(querying, title="This is an AI chatbot for customer service").launch(share=False,
+                                                                                      server_name="0.0.0.0",
+                                                                                      server_port=7862)

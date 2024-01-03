@@ -116,7 +116,7 @@ You should follow the below rules in answering:
 
 1. For open or setup new account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
 2. For close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
-3. For relocation or transfer account, first provide information about account termination, and then provide information about account opening;
+3. For relocation or transfer account, first provide information to terminate account using use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US, and then provide information to setup new account using this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
 4. For deposit refund, it is preferred to use crossed cheque made payable; 
 
 You should make your email response precise, use no more than 20 lines of text, and take the below context 
@@ -200,7 +200,8 @@ def main():
     global _RETRIEVER
     _RETRIEVER = get_retriever()
     gr.ChatInterface(querying, title="This is an AI email assistant for customer service",
-                     textbox=gr.Textbox(lines=10, scale=4)).launch(share=False)
+                     textbox=gr.Textbox(lines=10, scale=4)).launch(share=False, server_name="0.0.0.0", server_port=7860)
+
 
 
 if __name__ == "__main__":
