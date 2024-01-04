@@ -22,7 +22,7 @@ Customers holding American Express Card can settle their electricity bills by au
 For registration, please call American Express Customer Service Hotline according to the telephone no. printed on the back of American Express Card.
 AlipayHK
 
-Login "Account-On-Line" through the HK Electric App or webpage to view the bill balance and settle the bill by "AlipayHK" directly.
+Login "Account-On-Line" through the HK Electric App or webpage (https://aol.hkelectric.com/AOL/aol#/login?lang=en-US) to view the bill balance and settle the bill by "AlipayHK" directly.
 Customers can also login "AlipayHK" App directly to settle their electricity bills or set up auto-debit. For more details about "AlipayHK", please click here.
 Faster Payment System (FPS) QR Code
 
