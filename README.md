@@ -2,6 +2,11 @@
 
 Hello! Welcome to HK Electric's customer service. I'm here to assist you with account operation and billing enquiries. How can I help you today? If you have any questions related to account setup, termination, relocation, or payment methods, please feel free to ask.
 
+it is fine-tuned to support the following type of question
+1. account operations (openning account, closing account, relocation）
+2. bill enquiry (check bills, check statement, usage)
+3. payment method (how to pay bills)
+
 - for email: it use chain-of-thoughts (CoT) to validate question types, and then perform location checking, and then proceed to customer enquiry.  As a result, it takes more time to process the query and generate the answer, and result in better response with embedding business logics;
 
 - for chatbot: it use conversational memory and prompt design for question answer. As a result, it is faster but more straight-forward for simple Q&A experience. It is not tailored to embed busines logics.
