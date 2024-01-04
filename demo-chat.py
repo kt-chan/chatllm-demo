@@ -32,24 +32,31 @@ COLLECTION_CUSTOMER_ENQUIRY = "customer_enquiry"
 PERSIST_DIRECTORY = "./database/"
 PATH_TO_SFT_JSON_FILES = './sft/'
 
-INSTRUCTION = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries. 
+# INSTRUCTION = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
+#
+# You must follow the below rules in answering user question:
+#
+# 1. If the question is related to open or setup new account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US;
+# 2. If the question is related to close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
+# 3. If the question is related to relocation or transfer account, first provide information to terminate account using use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US, and then provide information to setup new account using this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
+# 4. If the question is related to deposit refund, it is preferred to use crossed cheque made payable;
+# 5. If the question is related to bill or statement, use this link: https://aol.hkelectric.com/AOL/aol#/login?lang=en-US
+#
+#
+# Last, make your response precise and do not list all options, and it is always prefer to use electronic application form whenever applicable:
+#
+#
+# Question: """
 
+RAG_TEMPLATE = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
 You must follow the below rules in answering user question:
-
 1. If the question is related to open or setup new account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US; 
 2. If the question is related to close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US; 
 3. If the question is related to relocation or transfer account, first provide information to terminate account using use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US, and then provide information to setup new account using this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
 4. If the question is related to deposit refund, it is preferred to use crossed cheque made payable; 
 5. If the question is related to bill or statement, use this link: https://aol.hkelectric.com/AOL/aol#/login?lang=en-US
 
-
-Last, make your response precise and do not list all options, and it is always prefer to use electronic application form whenever applicable:
-
-
-Question: """
-
-RAG_TEMPLATE = """You are a customer service agent of HK electric who answer questions from customer enquiry. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say "Hmm, I'm not sure.". Don't try to make up an answer. If the question is not related account operation or billing  enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
-
+And additional information is provided in the below sections:
 {context}
 
 Chat history:
@@ -89,25 +96,33 @@ vector_search = Chroma.from_documents(split_docs,
 
 custom_question_prompt = PromptTemplate(input_variables=["context", "question", "chat_history"], template=RAG_TEMPLATE)
 
-# 定义内存记忆
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
 
 def querying(query, history):
+    # 定义内存记忆
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+    if history:
+        logger.debug("chat history:")
+        logger.debug(history)
+        for itemset in history:
+            logger.debug("input:" + itemset[0] + "; output: " + itemset[1])
+            msg_human = itemset[0]
+            msg_bot = itemset[1]
+            memory.save_context({"input": msg_human}, {"output": msg_bot})
+
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vector_search.as_retriever(search_kwargs={"k": 3}),
+        retriever=vector_search.as_retriever(search_kwargs={"k": 1}),
         memory=memory,
-        verbose=False,
+        verbose=True,
         combine_docs_chain_kwargs={"prompt": custom_question_prompt}
     )
     logger.info("memory:")
-    logger.info(memory.chat_memory.messages)
-    logger.info("question: " + INSTRUCTION + query)
+    logger.debug(memory.chat_memory.messages)
+    logger.debug("question: " + query)
 
-    result = qa_chain({"question": INSTRUCTION + query})
-    logger.info("answer: " + result["answer"].strip())
-
+    result = qa_chain({"question": query})
+    logger.debug("answer: " + result["answer"].strip())
     return result["answer"].strip().replace("\\n", "</br>")
 
 
