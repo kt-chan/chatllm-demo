@@ -11,6 +11,14 @@ it is fine-tuned to support the following type of question
 
 - for chatbot: it use conversational memory and prompt design for question answer. As a result, it is faster but more straight-forward for simple Q&A experience. It is not tailored to embed busines logics.
 
+# Instruction
+
+1. Fill in the value in .env.template
+2. rename .env.template to .env
+3. pip install -r requirements.txt
+4. ./start.sh
+5. enjoy the demo
+
 Sample: 
 
 ![image](https://github.com/kt-chan/chatllm-demo/assets/18548399/a4894517-0edb-4293-9d9a-ef77ec03ee77)
