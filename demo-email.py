@@ -35,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _COLLECTION_CUSTOMER_ENQUIRY = "customer_enquiry"
-_PERSIST_DIRECTORY = "./database/"
+_PERSIST_DIRECTORY = "./database/hke/"
 _PATH_TO_SFT_JSON_FILES = './sft/'
 _RETRIEVER = None
 

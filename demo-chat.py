@@ -25,11 +25,16 @@ os.environ['CURL_CA_BUNDLE'] = ''
 # 填写控制台中获取的 APIKey 信息
 zhipuai.api_key = os.environ["ZHIPUAI_API_KEY"]
 
-logging.basicConfig(level=logging.INFO)
+# Log setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
 logger = logging.getLogger(__name__)
 
 COLLECTION_CUSTOMER_ENQUIRY = "customer_enquiry"
-PERSIST_DIRECTORY = "./database/"
+PERSIST_DIRECTORY = "./database/hke/"
 PATH_TO_SFT_JSON_FILES = './sft/'
 
 # INSTRUCTION = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
