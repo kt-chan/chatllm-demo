@@ -49,25 +49,39 @@ logger = logging.getLogger(__name__)
 COLLECTION_NAME = "webfaq_cn"
 PERSIST_DIRECTORY = "./database/cncbi/cn/"
 PATH_TO_SFT_JSON_FILES = './sft/'
-REF_WEBSITE_LINK = ["https://www.cncbinternational.com/personal/e-banking/inmotion/tc/support/index.html"] # simple chinese "https://www.cncbinternational.com/personal/e-banking/inmotion/sc/support/index.html"
-
+REF_WEBSITE_LINK = [
+    "https://www.cncbinternational.com/personal/e-banking/inmotion/tc/support/index.html"]  # simple chinese "https://www.cncbinternational.com/personal/e-banking/inmotion/sc/support/index.html"
 
 CHROMA_CLIENT = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
 CHROMA_COLLECTION = CHROMA_CLIENT.get_or_create_collection(name=COLLECTION_NAME)
 # CHROMA_EMBEDDING_MODEL = "shibing624/text2vec-base-chinese-paraphrase" # or use multilingual sentence-transformers/LaBSE
-CHROMA_EMBEDDING_MODEL = "sentence-transformers/LaBSE"
+CHROMA_EMBEDDING_MODEL = "shibing624/text2vec-base-chinese-paraphrase"
 
-RAG_TEMPLATE = """You are a customer service agent of China CITIC Bank International, and please respond to the question at the end. If the question is not related to the bank's customer service, you have to decline answering and politely inform the user that you are only tuned to bank customer service. Do not make up the answer from your general knowledge, and if you cannot find reference information from the below Frequently Asked Questions and Answers, just refer the customer to the customer hotline at 22876767.
+# RAG_TEMPLATE = """You are a customer service agent of China CITIC Bank International, and please respond to the question at the end. If the question is not related to the bank's customer service, you have to decline answering and politely inform the user that you are only tuned to bank customer service. Do not make up the answer from your general knowledge, and if you cannot find reference information from the below Frequently Asked Questions and Answers, just refer the customer to the customer hotline at 22876767.
+#
+# Frequently Asked Questions and Answers:
+# {context}
+#
+# Chat history:
+# {chat_history}
+#
+# Question: {question}
+#
+# Helpful Answer:"""
 
-Frequently Asked Questions and Answers:
+RAG_TEMPLATE = """你是中信銀行國際的客服代表，請回答下面的問題。如果問題與銀行的客戶服務無關，你必須拒絕回答，幷禮貌地告知用戶，你只關注銀行客戶服務。不要根據你的常識來編造答案，如果你在下面的常見問題解答中找不到參考信息，請直接向客戶熱綫 22876767 諮詢。
+
+常見問題和答案:
 {context}
 
-Chat history:
+聊天記錄:
 {chat_history}
 
-Question: {question}
+問題: {question}
 
-Helpful Answer:"""
+有用的回答:
+
+"""
 
 
 class QAPair:
@@ -137,6 +151,7 @@ def extract_docs(urls):
                 answers = list(doc[pair])[0][1]
                 qa_pair = QAPair(questions.strip(), answers)
                 my_docs.append(Document(page_content=str(qa_pair), metadata={"source": k}))
+    logger.info(my_docs)
     return my_docs
 
 
@@ -198,5 +213,5 @@ def querying(query, history):
 # Launch the interface
 # gr.ChatInterface(querying).launch(share=False)
 gr.ChatInterface(querying, title="歡迎使用智能客戶服務機器人").launch(share=False,
-                                                                                      server_name="0.0.0.0",
-                                                                                      server_port=7865)
+                                                                      server_name="0.0.0.0",
+                                                                      server_port=7865)
