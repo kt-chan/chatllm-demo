@@ -1,6 +1,7 @@
 import logging
 import os
 
+import chromadb
 import gradio as gr
 import zhipuai
 from dotenv import load_dotenv, find_dotenv
@@ -33,25 +34,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-COLLECTION_CUSTOMER_ENQUIRY = "customer_enquiry"
+COLLECTION_NAME = "customer_enquiry_en"
 PERSIST_DIRECTORY = "./database/hke/"
 PATH_TO_SFT_JSON_FILES = './sft/'
 
-# INSTRUCTION = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
-#
-# You must follow the below rules in answering user question:
-#
-# 1. If the question is related to open or setup new account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US;
-# 2. If the question is related to close or terminate account, use this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
-# 3. If the question is related to relocation or transfer account, first provide information to terminate account using use this link: https://aol.hkelectric.com/AOL/aol#/eforms/appl?lang=en-US, and then provide information to setup new account using this link: https://aol.hkelectric.com/AOL/aol#/eforms/term?lang=en-US;
-# 4. If the question is related to deposit refund, it is preferred to use crossed cheque made payable;
-# 5. If the question is related to bill or statement, use this link: https://aol.hkelectric.com/AOL/aol#/login?lang=en-US
-#
-#
-# Last, make your response precise and do not list all options, and it is always prefer to use electronic application form whenever applicable:
-#
-#
-# Question: """
+CHROMA_CLIENT = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
+CHROMA_COLLECTION = CHROMA_CLIENT.get_or_create_collection(name=COLLECTION_NAME)
+CHROMA_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2" # this is for english embeddings or use multilingual sentence-transformers/LaBSE
+# CHROMA_EMBEDDING_MODEL = "shibing624/text2vec-base-chinese-paraphrase" # this is chinese embeddings.
 
 RAG_TEMPLATE = """You are a customer service agent of HK electric, please respond to the question at the end. If the question is not related account operation or billing enquiries, you have to decline answering and politely inform the user that you are only tuned to customer service on account operation and billing enquiries.
 You must follow the below rules in answering user question:
@@ -79,7 +69,7 @@ class QAPair:
 
 
 # 加载文件夹中的所有txt类型的文件
-loader = DirectoryLoader('./data/', glob='**/*.txt')
+loader = DirectoryLoader('./data/en/', glob='**/*.txt')
 # 将数据转成 document 对象，每个文件会作为一个 document
 documents = loader.load()
 logger.info(f'documents:{len(documents)}')
@@ -93,12 +83,23 @@ split_docs = text_splitter.split_documents(documents)
 llm = ZhipuAILLM(model="chatglm_turbo", temperature=0.9, top_p=0.1, zhipuai_api_key=zhipuai.api_key)
 
 # RAG VectorSearch: 将 document 通过 openai 的 embeddings 对象计算 embedding 向量信息并临时存入 Chroma 向量数据库，用于后续匹配查询
-vector_search = Chroma.from_documents(split_docs,
-                                      embedding=HuggingFaceEmbeddings(),
-                                      collection_name=COLLECTION_CUSTOMER_ENQUIRY,
-                                      persist_directory=PERSIST_DIRECTORY
-                                      )
+logger.info("building vector database index ...")
+embeddings = HuggingFaceEmbeddings(model_name=CHROMA_EMBEDDING_MODEL)
 
+if CHROMA_COLLECTION.count() > 0:
+    vectorstore = Chroma(client=CHROMA_CLIENT,
+                         embedding_function=embeddings,
+                         collection_name=COLLECTION_NAME,
+                         persist_directory=PERSIST_DIRECTORY)
+else:
+    vectorstore = Chroma.from_documents(split_docs,
+                                        embedding=embeddings,
+                                        collection_name=COLLECTION_NAME,
+                                        persist_directory=PERSIST_DIRECTORY
+                                        )
+    vectorstore.persist()
+
+chroma_retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 custom_question_prompt = PromptTemplate(input_variables=["context", "question", "chat_history"], template=RAG_TEMPLATE)
 
 
@@ -117,7 +118,7 @@ def querying(query, history):
 
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vector_search.as_retriever(search_kwargs={"k": 1}),
+        retriever=chroma_retriever,
         memory=memory,
         verbose=True,
         combine_docs_chain_kwargs={"prompt": custom_question_prompt}
@@ -135,4 +136,4 @@ def querying(query, history):
 # gr.ChatInterface(querying).launch(share=False)
 gr.ChatInterface(querying, title="This is an AI chatbot for customer service").launch(share=False,
                                                                                       server_name="0.0.0.0",
-                                                                                      server_port=7862)
+                                                                                      server_port=7861)

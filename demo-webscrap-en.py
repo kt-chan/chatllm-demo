@@ -53,9 +53,9 @@ REF_WEBSITE_LINK = ["https://www.cncbinternational.com/personal/e-banking/inmoti
 
 CHROMA_CLIENT = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
 CHROMA_COLLECTION = CHROMA_CLIENT.get_or_create_collection(name=COLLECTION_NAME)
-CHROMA_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2" # or use multilingual sentence-transformers/LaBSE
 
-RAG_TEMPLATE = """You are a customer service agent of China CITIC Bank International, and please respond to the question at the end. If the question is not related to the bank's customer service, you have to decline answering and politely inform the user that you are only tuned to bank customer service. Do not make up the answer from your general knowledge, and if you cannot find reference information from the below Frequently Asked Questions and Answers, just refer the customer to the customer hotline at 22876767.
+
+RAG_TEMPLATE = """You are a customer service agent of China CITIC Bank International, and please respond to the quesCHROMA_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2" # or use multilingual sentence-transformers/LaBSEtion at the end. If the question is not related to the bank's customer service, you have to decline answering and politely inform the user that you are only tuned to bank customer service. Do not make up the answer from your general knowledge, and if you cannot find reference information from the below Frequently Asked Questions and Answers, just refer the customer to the customer hotline at 22876767.
 
 Frequently Asked Questions and Answers:
 {context}
@@ -197,4 +197,4 @@ def querying(query, history):
 # gr.ChatInterface(querying).launch(share=False)
 gr.ChatInterface(querying, title="This is an AI chatbot for customer service").launch(share=False,
                                                                                       server_name="0.0.0.0",
-                                                                                      server_port=7864)
+                                                                                      server_port=7865)

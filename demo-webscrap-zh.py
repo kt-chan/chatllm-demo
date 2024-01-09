@@ -214,4 +214,4 @@ def querying(query, history):
 # gr.ChatInterface(querying).launch(share=False)
 gr.ChatInterface(querying, title="歡迎使用智能客戶服務機器人").launch(share=False,
                                                                       server_name="0.0.0.0",
-                                                                      server_port=7865)
+                                                                      server_port=7866)
