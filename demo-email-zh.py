@@ -78,7 +78,7 @@ def get_retriever():
                                                 persist_directory=PERSIST_DIRECTORY)
             vectorstore.persist()
 
-        _RETRIEVER = vectorstore.as_retriever(search_kwargs={"k": 1})
+        _RETRIEVER = vectorstore.as_retriever(search_kwargs={"k": 2})
     return _RETRIEVER
 
 

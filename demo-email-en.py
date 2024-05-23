@@ -78,7 +78,7 @@ def get_retriever():
                                                 persist_directory=PERSIST_DIRECTORY)
             vectorstore.persist()
 
-        _RETRIEVER = vectorstore.as_retriever(search_kwargs={"k": 1})
+        _RETRIEVER = vectorstore.as_retriever(search_kwargs={"k": 2})
     return _RETRIEVER
 
 
@@ -136,6 +136,8 @@ You must follow the below rules in answering user question:
 
 
 And additional information is provided in the below sections:
+Customer Service Hotline or Phone Number:  (852) 2887 3411
+Customer Service Email: cs@hkelectric.com
 {context} 
 
 Last, make your response precise and do not list all options, and it is always prefer to use electronic application form whenever applicable:

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Welcome to HKE chatbot testing page</h1>
+</br>
+<p>
+Hello! Welcome to HK Electric's customer service. I'm here to assist you with account operation and billing enquiries. How can I help you today? If you have any questions related to account setup, termination, relocation, or payment methods, please feel free to ask. It is fine-tuned to support the following type of question
+</p>
+<ul>
+<li>account operations (openning account, closing account, relocation）</li>
+<li>bill enquiry (check bills, check statement, usage) </li>
+<li>payment method (how to pay bills) </li>
+</ul>
+</br>
+<p>
+for email: it use chain-of-thoughts (CoT) to validate question types, and then perform location checking, and then proceed to customer enquiry. As a result, it takes more time to process the query and generate the answer, and result in better response with embedding business logics;
+</p>
+</p>
+<p># huawei email co-pilot:
+<a href="/" onclick="javascript:event.target.port=7863">click here for email test case</a>
+</p>
+<!--
+<p># 電子郵件 email 機器人中文版本(由中文介面進入對中文理解更好)
+<a href="/" onclick="javascript:event.target.port=7864">點擊這裡進入中文版的電子郵件 email 機器人</a>
+</p>
+-->
+</br>
+<p>
+for chatbot: it use conversational memory and prompt design for question answer. As a result, it is faster but more straight-forward for simple Q&A experience. But it is not tailored to embed busines logics, such that it does not support address validation feature.
+
+</br>
+<p># huawei intelligent chatbot
+<a href="/" onclick="javascript:event.target.port=7861">click here for chat test case</a>
+</p>
+<!--
+<p># 聊天機器人 chatbot 中文版本(由中文介面進入對中文理解更好)
+<a href="/" onclick="javascript:event.target.port=7862">點擊這裡進入中文版的聊天機器人</a>
+</p>
+-->
+</br>
+<p>
+For details, you can refer to this github page for its code: <a href="https://github.com/kt-chan/chatllm-demo/">https://github.com/kt-chan/chatllm-demo/</a>
+</p>
+
+</body>
+</html>
